@@ -5,6 +5,16 @@
 #define N 10000000
 #define MAX_ERR 1e-6
 
+__global__ void init_data(float *__restrict__ x, float *__restrict__ y, int n) {
+  int tid = blockIdx.x * blockDim.x + threadIdx.x;
+  int stride = blockDim.x * gridDim.x;
+
+  for (int i = tid; i < n; i += stride) {
+    x[i] = 1.0f;
+    y[i] = 2.0f;
+  }
+}
+
 __global__ void vector_add(float *__restrict__ x, float *__restrict__ y,
                            int n) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -15,21 +25,21 @@ __global__ void vector_add(float *__restrict__ x, float *__restrict__ y,
 }
 
 int main() {
+  int deviceId;
+  cudaGetDevice(&deviceId);
+
   float *x, *y;
   cudaMallocManaged(&x, sizeof(float) * N);
   cudaMallocManaged(&y, sizeof(float) * N);
-  for (int i = 0; i < N; i++) {
-    x[i] = 1.0f;
-    y[i] = 2.0f;
-  }
-  int deviceId;
-  cudaGetDevice(&deviceId);
   // Prefetch the x and y arrays to the GPU
   cudaMemPrefetchAsync(x, N * sizeof(float), deviceId, 0);
   cudaMemPrefetchAsync(y, N * sizeof(float), deviceId, 0);
 
   int threadsPerBlock = 256;
   int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
+  init_data<<<blocksPerGrid, threadsPerBlock>>>(x, y, N);
+  cudaDeviceSynchronize();
+
   vector_add<<<blocksPerGrid, threadsPerBlock>>>(x, y, N);
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess) {
