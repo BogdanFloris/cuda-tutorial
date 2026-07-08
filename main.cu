@@ -5,9 +5,11 @@
 #define N 10000000
 #define MAX_ERR 1e-6
 
-__global__ void vector_add(float *x, float *y, int n) {
+__global__ void vector_add(float *__restrict__ x, float *__restrict__ y,
+                           int n) {
   int tid = blockIdx.x * blockDim.x + threadIdx.x;
-  if (tid < n) {
+  int stride = blockDim.x * gridDim.x;
+  for (int i = tid; i < n; i += stride) {
     y[tid] = x[tid] + y[tid];
   }
 }
@@ -20,18 +22,24 @@ int main() {
     x[i] = 1.0f;
     y[i] = 2.0f;
   }
+  int deviceId;
+  cudaGetDevice(&deviceId);
   // Prefetch the x and y arrays to the GPU
-  cudaMemPrefetchAsync(x, N * sizeof(float), 0, 0);
-  cudaMemPrefetchAsync(y, N * sizeof(float), 0, 0);
+  cudaMemPrefetchAsync(x, N * sizeof(float), deviceId, 0);
+  cudaMemPrefetchAsync(y, N * sizeof(float), deviceId, 0);
 
   int threadsPerBlock = 256;
   int blocksPerGrid = (N + threadsPerBlock - 1) / threadsPerBlock;
   vector_add<<<blocksPerGrid, threadsPerBlock>>>(x, y, N);
-  cudaDeviceSynchronize();
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess) {
     printf("cuda error: %s\n", cudaGetErrorString(err));
   }
+
+  cudaDeviceSynchronize();
+  cudaMemPrefetchAsync(y, N * sizeof(float), cudaCpuDeviceId, 0);
+  // Synchronize the CPU stream to ensure prefetch completes before reading
+  cudaStreamSynchronize(0);
 
   for (int i = 0; i < N; i++) {
     assert(fabs(y[i] - 3.0f) < MAX_ERR);
