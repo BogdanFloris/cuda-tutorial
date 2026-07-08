@@ -11,9 +11,6 @@ all: $(TARGET)
 $(TARGET): $(SRC)
 	$(NVCC) $(NVCCFLAGS) $(LDFLAGS) -o $@ $<
 
-profile: $(TARGET)
-	LD_LIBRARY_PATH=/usr/lib64:$$LD_LIBRARY_PATH ncu ./$(TARGET)
-
 clean:
 	rm -f $(TARGET)
 

@@ -21,7 +21,7 @@
         } {
           buildInputs = with pkgs; [
             cudaPackages.cudatoolkit
-            cudaPackages.nsight_compute
+            cudaPackages.nsight_systems
             clang-tools
             cmake
             gtest
